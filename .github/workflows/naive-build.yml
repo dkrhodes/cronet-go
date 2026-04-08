@@ -13,10 +13,6 @@ concurrency:
 jobs:
   linux:
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: [amd64, arm64]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,14 +35,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: naiveproxy/src/out
-          key: naive-build-${{ steps.naive.outputs.commit }}-${{ hashFiles('cmd/build-naive/cmd_build.go', 'cmd/build-naive/cmd.go') }}-linux-${{ matrix.arch }}
+          key: naive-build-${{ steps.naive.outputs.commit }}-${{ hashFiles('cmd/build-naive/cmd_build.go', 'cmd/build-naive/cmd.go') }}-linux-amd64
       - name: Cache ccache files
         if: steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache@v4
         with:
           path: ~/.cache/ccache
-          key: ccache-linux-${{ matrix.arch }}-${{ steps.chromium.outputs.version }}
-          restore-keys: ccache-linux-${{ matrix.arch }}-
+          key: ccache-linux-amd64-${{ steps.chromium.outputs.version }}
+          restore-keys: ccache-linux-amd64-
       - name: Install packages
         if: steps.build-cache.outputs.cache-hit != 'true'
         run: |
@@ -57,14 +53,14 @@ jobs:
         run: ccache -z
       - name: Build
         if: steps.build-cache.outputs.cache-hit != 'true'
-        run: go run ./cmd/build-naive --target=linux/${{ matrix.arch }} build
+        run: go run ./cmd/build-naive --target=linux/amd64 build
       - name: Show ccache stats
         if: steps.build-cache.outputs.cache-hit != 'true'
         run: ccache -s
       - name: Package
         run: |
-          go run ./cmd/build-naive --target=linux/${{ matrix.arch }} package --local
-          go run ./cmd/build-naive --target=linux/${{ matrix.arch }} package
+          go run ./cmd/build-naive --target=linux/amd64 package --local
+          go run ./cmd/build-naive --target=linux/amd64 package
       - name: Cache toolchain
         uses: actions/cache@v4
         with:
@@ -73,40 +69,29 @@ jobs:
             naiveproxy/src/gn/out
             naiveproxy/src/chrome/build/pgo_profiles
             naiveproxy/src/out/sysroot-build
-          key: toolchain-linux-${{ matrix.arch }}-${{ steps.chromium.outputs.version }}
-          restore-keys: toolchain-linux-${{ matrix.arch }}-
+          key: toolchain-linux-amd64-${{ steps.chromium.outputs.version }}
+          restore-keys: toolchain-linux-amd64-
       - name: Download clang and sysroot
-        run: go run ./cmd/build-naive --target=linux/${{ matrix.arch }} download-toolchain
-      - name: Install QEMU for cross-platform testing
-        run: |
-          sudo apt update
-          sudo apt install -y qemu-user-binfmt
+        run: go run ./cmd/build-naive --target=linux/amd64 download-toolchain
       - name: Build test binary
         run: |
-          eval $(go run ./cmd/build-naive --target=linux/${{ matrix.arch }} env --export)
-          CGO_ENABLED=1 GOOS=linux GOARCH=${{ matrix.arch }} go test -c -o cronet.test .
+          eval $(go run ./cmd/build-naive --target=linux/amd64 env --export)
+          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go test -c -o cronet.test .
       - name: Run test binary
         run: |
-          eval $(go run ./cmd/build-naive --target=linux/${{ matrix.arch }} env --export)
-          if [ "${{ matrix.arch }}" != "amd64" ]; then
-            export QEMU_LD_PREFIX
-          fi
+          eval $(go run ./cmd/build-naive --target=linux/amd64 env --export)
           ./cronet.test -test.v -test.run=TestEngineVersion
       - name: Build purego test binary
         run: |
-          cp lib/linux_${{ matrix.arch }}/libcronet.so .
-          CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.arch }} go test -tags with_purego -c -o cronet.purego.test .
+          cp lib/linux_amd64/libcronet.so .
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go test -tags with_purego -c -o cronet.purego.test .
       - name: Run purego test binary
         run: |
-          if [ "${{ matrix.arch }}" != "amd64" ]; then
-            eval $(go run ./cmd/build-naive --target=linux/${{ matrix.arch }} env --export)
-            export QEMU_LD_PREFIX
-          fi
           export LD_LIBRARY_PATH=$PWD
           ./cronet.purego.test -test.v -test.run=TestEngineVersion
       - uses: actions/upload-artifact@v4
         with:
-          name: cronet-linux-${{ matrix.arch }}
+          name: cronet-linux-amd64
           path: |
             lib/
             include/
@@ -186,11 +171,6 @@ jobs:
             artifact: cronet-linux-amd64
             target: linux/amd64
             mode: cgo
-          - name: linux-arm64-cgo
-            os: ubuntu-22.04-arm
-            artifact: cronet-linux-arm64
-            target: linux/arm64
-            mode: cgo
           - name: darwin-arm64-cgo
             os: macos-15
             artifact: cronet-darwin-arm64
@@ -230,8 +210,8 @@ jobs:
             naiveproxy/src/gn/out
             naiveproxy/src/chrome/build/pgo_profiles
             naiveproxy/src/out/sysroot-build
-          key: toolchain-linux-${{ contains(matrix.target, 'arm64') && 'arm64' || 'amd64' }}-${{ steps.chromium.outputs.version }}
-          restore-keys: toolchain-linux-${{ contains(matrix.target, 'arm64') && 'arm64' || 'amd64' }}-
+          key: toolchain-linux-amd64-${{ steps.chromium.outputs.version }}
+          restore-keys: toolchain-linux-amd64-
 
       - name: Download toolchain (Linux)
         if: runner.os == 'Linux'
