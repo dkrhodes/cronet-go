@@ -160,6 +160,30 @@ func TestSocketPoolOptions(t *testing.T) {
 		"expected max_sockets_per_group in options, got: %s", options)
 }
 
+func TestSetCronetProxyURLs(t *testing.T) {
+	params := cronet.NewEngineParams()
+	defer params.Destroy()
+
+	err := params.SetCronetProxyURLs([]string{
+		"http://user:pass@10.0.0.1:8080",
+		"socks5://127.0.0.1",
+		"direct://",
+	})
+	require.NoError(t, err)
+
+	options := params.ExperimentalOptions()
+	require.Contains(t, options, `"CronetProxy"`, options)
+	require.Contains(t, options, `"proxies"`, options)
+	require.Contains(t, options, `http://user:pass@10.0.0.1:8080`, options)
+	require.Contains(t, options, `socks5://127.0.0.1`, options)
+	require.Contains(t, options, `direct://`, options)
+
+	require.NoError(t, params.SetCronetProxyURLs(nil))
+	require.NoError(t, params.SetCronetProxyURLs([]string{}))
+	optsAfterClear := params.ExperimentalOptions()
+	require.NotContains(t, optsAfterClear, `"CronetProxy"`, optsAfterClear)
+}
+
 func TestQUICReceiveWindowCustomValues(t *testing.T) {
 	naiveQUICServerPort := reserveUDPPort(t)
 	caPem, certPem, keyPem := generateCertificate(t, "example.org")

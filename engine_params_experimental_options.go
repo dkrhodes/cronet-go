@@ -106,3 +106,26 @@ func (p EngineParams) SetSocketPoolOptions(maxPerPool, maxPerProxyChain, maxPerG
 		"max_sockets_per_group":       maxPerGroup,
 	})
 }
+
+// SetCronetProxyURLs configures a static proxy chain via Cronet experimental options.
+// Each URL uses normal proxy URL syntax, for example:
+//
+//	http://host:8080 , https://host:443 , socks5://127.0.0.1:1080 , socks5h://host:port ,
+//	socks4://host:port , http://user:pass@host:8080 , direct://
+//
+// Entries are tried in order (fallback). SOCKS5 URLs may include userinfo for RFC 1929
+// username/password authentication. The socks5h scheme (curl-style alias) is accepted
+// the same as socks5.
+// Pass an empty slice to clear proxy configuration.
+func (p EngineParams) SetCronetProxyURLs(proxyURLs []string) error {
+	if len(proxyURLs) == 0 {
+		return p.SetExperimentalOption("CronetProxy", nil)
+	}
+	proxies := make([]any, 0, len(proxyURLs))
+	for _, u := range proxyURLs {
+		proxies = append(proxies, map[string]any{"url": u})
+	}
+	return p.SetExperimentalOption("CronetProxy", map[string]any{
+		"proxies": proxies,
+	})
+}
