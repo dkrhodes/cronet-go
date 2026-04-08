@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/sagernet/cronet-go"
+	"github.com/dkrhodes/cronet-go"
 )
 
 func TestEngineVersion(t *testing.T) {

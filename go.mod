@@ -1,4 +1,4 @@
-module github.com/sagernet/cronet-go
+module github.com/dkrhodes/cronet-go
 
 go 1.20
 

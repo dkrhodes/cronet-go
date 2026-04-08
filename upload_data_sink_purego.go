@@ -5,7 +5,7 @@ package cronet
 import (
 	"unsafe"
 
-	"github.com/sagernet/cronet-go/internal/cronet"
+	"github.com/dkrhodes/cronet-go/internal/cronet"
 )
 
 func (s UploadDataSink) Destroy() {

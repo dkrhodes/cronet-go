@@ -16,7 +16,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/sagernet/cronet-go/internal/cronet"
+	"github.com/dkrhodes/cronet-go/internal/cronet"
 
 	"github.com/ebitengine/purego"
 )

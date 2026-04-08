@@ -5,7 +5,7 @@ package cronet
 import (
 	"time"
 
-	"github.com/sagernet/cronet-go/internal/cronet"
+	"github.com/dkrhodes/cronet-go/internal/cronet"
 )
 
 func NewDateTime() DateTime {

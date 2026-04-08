@@ -2,7 +2,7 @@
 
 package cronet
 
-import "github.com/sagernet/cronet-go/internal/cronet"
+import "github.com/dkrhodes/cronet-go/internal/cronet"
 
 func LoadLibrary(path string) error {
 	return cronet.LoadLibrary(path)

@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"unsafe"
 
-	"github.com/sagernet/cronet-go/internal/cronet"
+	"github.com/dkrhodes/cronet-go/internal/cronet"
 )
 
 func (e Engine) StreamEngine() StreamEngine {

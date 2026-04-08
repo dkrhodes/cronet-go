@@ -7,7 +7,7 @@ import (
 	"testing"
 	"unicode"
 
-	cronet "github.com/sagernet/cronet-go"
+	cronet "github.com/dkrhodes/cronet-go"
 
 	"github.com/stretchr/testify/require"
 )

@@ -1,10 +1,10 @@
-module github.com/sagernet/cronet-go/test
+module github.com/dkrhodes/cronet-go/test
 
 go 1.24.0
 
 require (
 	github.com/miekg/dns v1.1.68
-	github.com/sagernet/cronet-go v0.0.0
+	github.com/dkrhodes/cronet-go v0.0.0
 	github.com/sagernet/sing v0.7.13
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/goleak v1.3.0
@@ -26,4 +26,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/sagernet/cronet-go => ../
+replace github.com/dkrhodes/cronet-go => ../

@@ -1,6 +1,6 @@
 # cronet-go
 
-[![Reference](https://pkg.go.dev/badge/github.com/sagernet/cronet-go.svg)](https://pkg.go.dev/github.com/sagernet/cronet-go)
+[![Reference](https://pkg.go.dev/badge/github.com/dkrhodes/cronet-go.svg)](https://pkg.go.dev/github.com/dkrhodes/cronet-go)
 
 Go bindings for [naiveproxy](https://github.com/klzgrad/naiveproxy).
 
@@ -49,7 +49,7 @@ Go bindings for [naiveproxy](https://github.com/klzgrad/naiveproxy).
 ## Linux Build instructions
 
 ```bash
-git clone --recursive --depth=1 https://github.com/sagernet/cronet-go.git
+git clone --recursive --depth=1 https://github.com/dkrhodes/cronet-go.git
 cd cronet-go
 go run ./cmd/build-naive --target=linux/amd64 download-toolchain
 #go run ./cmd/build-naive --target=linux/amd64 --libc=musl download-toolchain
@@ -78,7 +78,7 @@ For Windows or pure Go builds (no CGO), you need to distribute the dynamic libra
 
 ### Download Library
 
-Download `libcronet.dll` (Windows) or `libcronet.so` (Linux) from [GitHub Releases](https://github.com/sagernet/cronet-go/releases).
+Download `libcronet.dll` (Windows) or `libcronet.so` (Linux) from [GitHub Releases](https://github.com/dkrhodes/cronet-go/releases).
 
 ### Build with purego
 
@@ -101,6 +101,6 @@ Place the library file in the same directory as your executable:
 If you need to programmatically extract libraries from Go module dependencies (e.g., for CI/CD pipelines):
 
 ```bash
-go run github.com/sagernet/cronet-go/cmd/build-naive@latest extract-lib --target windows/amd64 -n libcronet_amd64.dll
-go run github.com/sagernet/cronet-go/cmd/build-naive@latest extract-lib --target linux/amd64 -n libcronet_amd64.so
+go run github.com/dkrhodes/cronet-go/cmd/build-naive@latest extract-lib --target windows/amd64 -n libcronet_amd64.dll
+go run github.com/dkrhodes/cronet-go/cmd/build-naive@latest extract-lib --target linux/amd64 -n libcronet_amd64.so
 ```

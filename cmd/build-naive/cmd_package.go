@@ -320,7 +320,7 @@ func generateSubmodules(targets []Target) {
 		targetDirectory := filepath.Join(projectRoot, "lib", directoryName)
 		packageName := strings.ReplaceAll(directoryName, "-", "_")
 
-		goModContent := fmt.Sprintf(`module github.com/sagernet/cronet-go/lib/%s
+		goModContent := fmt.Sprintf(`module github.com/dkrhodes/cronet-go/lib/%s
 
 go 1.20
 `, directoryName)

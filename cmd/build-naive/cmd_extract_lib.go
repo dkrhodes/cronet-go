@@ -66,14 +66,14 @@ func extractLibrary(target Target) {
 	directoryName := getLibraryDirectoryName(target)
 
 	// Get the latest commit from the go branch
-	goBranchCommit := runCommandOutput(".", "git", "ls-remote", "https://github.com/sagernet/cronet-go.git", "refs/heads/go")
+	goBranchCommit := runCommandOutput(".", "git", "ls-remote", "https://github.com/dkrhodes/cronet-go.git", "refs/heads/go")
 	if goBranchCommit == "" {
 		log.Fatal("failed to get go branch commit")
 	}
 	// Output format: "<commit>\trefs/heads/go\n"
 	commitHash := strings.Fields(goBranchCommit)[0]
 
-	modulePath := fmt.Sprintf("github.com/sagernet/cronet-go/lib/%s@%s", directoryName, commitHash)
+	modulePath := fmt.Sprintf("github.com/dkrhodes/cronet-go/lib/%s@%s", directoryName, commitHash)
 
 	log.Printf("Downloading module %s...", modulePath)
 

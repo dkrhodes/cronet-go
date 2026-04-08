@@ -8,7 +8,7 @@ import (
 	"os"
 	"testing"
 
-	cronet "github.com/sagernet/cronet-go"
+	cronet "github.com/dkrhodes/cronet-go"
 	M "github.com/sagernet/sing/common/metadata"
 
 	"github.com/stretchr/testify/require"

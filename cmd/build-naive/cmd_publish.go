@@ -134,12 +134,12 @@ func generateAllPackage(directory, pseudoVersion string, builtTargets []string) 
 
 func generateAllGoMod(allDirectory, pseudoVersion string, builtTargets []string) {
 	var builder strings.Builder
-	builder.WriteString("module github.com/sagernet/cronet-go/all\n\n")
+	builder.WriteString("module github.com/dkrhodes/cronet-go/all\n\n")
 	builder.WriteString("go 1.20\n\n")
 	builder.WriteString("require (\n")
-	builder.WriteString(fmt.Sprintf("\tgithub.com/sagernet/cronet-go %s\n", pseudoVersion))
+	builder.WriteString(fmt.Sprintf("\tgithub.com/dkrhodes/cronet-go %s\n", pseudoVersion))
 	for _, targetName := range builtTargets {
-		builder.WriteString(fmt.Sprintf("\tgithub.com/sagernet/cronet-go/lib/%s %s\n", targetName, pseudoVersion))
+		builder.WriteString(fmt.Sprintf("\tgithub.com/dkrhodes/cronet-go/lib/%s %s\n", targetName, pseudoVersion))
 	}
 	builder.WriteString(")\n")
 
@@ -159,8 +159,8 @@ func generatePlatformImportFile(allDirectory, targetName string) {
 package all
 
 import (
-	_ "github.com/sagernet/cronet-go"
-	_ "github.com/sagernet/cronet-go/lib/%s"
+	_ "github.com/dkrhodes/cronet-go"
+	_ "github.com/dkrhodes/cronet-go/lib/%s"
 )
 `, buildTag, targetName)
 
@@ -261,7 +261,7 @@ func runGoModTidy(directory string) {
 
 func forceMainModuleVersion(directory, version string) {
 	log.Printf("Forcing main module version to %s...", version)
-	runCommand(directory, "go", "mod", "edit", "-require=github.com/sagernet/cronet-go@"+version)
+	runCommand(directory, "go", "mod", "edit", "-require=github.com/dkrhodes/cronet-go@"+version)
 }
 
 func fixLibSubmoduleVersions(libDirectory string, targets []string, version string) {
@@ -281,12 +281,12 @@ func fixLibSubmoduleVersions(libDirectory string, targets []string, version stri
 			log.Fatalf("failed to read %s: %v", goModPath, err)
 		}
 
-		if !strings.Contains(string(content), "github.com/sagernet/cronet-go") {
+		if !strings.Contains(string(content), "github.com/dkrhodes/cronet-go") {
 			continue
 		}
 
 		// Force correct version
-		runCommand(submoduleDirectory, "go", "mod", "edit", "-require=github.com/sagernet/cronet-go@"+version)
+		runCommand(submoduleDirectory, "go", "mod", "edit", "-require=github.com/dkrhodes/cronet-go@"+version)
 		log.Printf("  Fixed lib/%s", targetName)
 	}
 }

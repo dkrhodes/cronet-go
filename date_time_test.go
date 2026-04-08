@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sagernet/cronet-go"
+	"github.com/dkrhodes/cronet-go"
 )
 
 func TestDateTime(t *testing.T) {

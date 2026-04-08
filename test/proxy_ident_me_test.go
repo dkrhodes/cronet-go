@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	cronet "github.com/sagernet/cronet-go"
+	cronet "github.com/dkrhodes/cronet-go"
 
 	"github.com/stretchr/testify/require"
 )

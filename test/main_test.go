@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	cronet "github.com/sagernet/cronet-go"
+	cronet "github.com/dkrhodes/cronet-go"
 	"github.com/sagernet/sing/common/bufio"
 	M "github.com/sagernet/sing/common/metadata"
 	N "github.com/sagernet/sing/common/network"
