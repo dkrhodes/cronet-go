@@ -17,6 +17,12 @@ type RoundTripper struct {
 	Engine        Engine
 	Executor      Executor
 
+	// ProxyFunc, if non-nil, is called when the RoundTripper creates its own Engine
+	// (Engine is zero on first use). Returned URLs are passed to SetCronetProxyURLs
+	// before StartWithParams. Same semantics as SetCronetProxyURLs: ordered fallback list.
+	// Ignored when Engine is set explicitly by the caller.
+	ProxyFunc func() ([]string, error)
+
 	closeEngine   bool
 	closeExecutor bool
 }
@@ -39,6 +45,19 @@ func (t *RoundTripper) RoundTrip(request *http.Request) (*http.Response, error) 
 		engineParams.SetEnableQuic(true)
 		engineParams.SetEnableBrotli(true)
 		engineParams.SetUserAgent("Go-http-client/1.1")
+		if t.ProxyFunc != nil {
+			urls, err := t.ProxyFunc()
+			if err != nil {
+				engineParams.Destroy()
+				return nil, err
+			}
+			if len(urls) > 0 {
+				if err := engineParams.SetCronetProxyURLs(urls); err != nil {
+					engineParams.Destroy()
+					return nil, err
+				}
+			}
+		}
 		t.Engine = NewEngine()
 		t.Engine.StartWithParams(engineParams)
 		engineParams.Destroy()
