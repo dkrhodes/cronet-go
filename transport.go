@@ -16,7 +16,6 @@ import (
 type RoundTripper struct {
 	CheckRedirect func(newLocationUrl string) bool
 	Engine        Engine
-	Executor      Executor
 
 	// ProxyFunc, if non-nil, is called when the RoundTripper creates its own Engine
 	// (Engine is zero on first use). Returned URLs are passed to SetCronetProxyURLs
@@ -36,11 +35,10 @@ type RoundTripper struct {
 	// InsecureSkipVerify and TrustedRootPEM must not both be set.
 	InsecureSkipVerify bool
 
-	mu            sync.Mutex
-	closed        bool
-	closeOnce     sync.Once
-	closeEngine   bool
-	closeExecutor bool
+	mu          sync.Mutex
+	closed      bool
+	closeOnce   sync.Once
+	closeEngine bool
 }
 
 func (t *RoundTripper) closeResources() {
@@ -48,13 +46,10 @@ func (t *RoundTripper) closeResources() {
 		t.Engine.Shutdown()
 		t.Engine.Destroy()
 	}
-	if t.closeExecutor {
-		t.Executor.Destroy()
-	}
 }
 
-// Close shuts down any Engine and Executor that the RoundTripper created
-// internally (i.e. those not supplied by the caller). It is safe to call
+// Close shuts down any Engine that the RoundTripper created internally
+// (i.e. one not supplied by the caller). It is safe to call
 // Close concurrently with RoundTrip. After Close returns, subsequent
 // RoundTrip calls return net.ErrClosed immediately. Close is idempotent.
 func (t *RoundTripper) Close() {
@@ -64,8 +59,8 @@ func (t *RoundTripper) Close() {
 	t.closeOnce.Do(t.closeResources)
 }
 
-// initLocked initialises the Engine and Executor if they have not yet been
-// created. It must be called with t.mu held and returns with t.mu still held
+// initLocked initialises the Engine if it has not yet been created.
+// It must be called with t.mu held and returns with t.mu still held
 // on success. On error the mutex is unlocked before returning.
 func (t *RoundTripper) initLocked() error {
 	var emptyEngine Engine
@@ -126,19 +121,6 @@ func (t *RoundTripper) initLocked() error {
 		t.closeEngine = true
 		runtime.SetFinalizer(t, func(rt *RoundTripper) { rt.closeOnce.Do(rt.closeResources) })
 	}
-	var emptyExecutor Executor
-	if t.Executor == emptyExecutor {
-		t.Executor = NewExecutor(func(executor Executor, command Runnable) {
-			go func() {
-				command.Run()
-				command.Destroy()
-			}()
-		})
-		t.closeExecutor = true
-		if !t.closeEngine {
-			runtime.SetFinalizer(t, func(rt *RoundTripper) { rt.closeOnce.Do(rt.closeResources) })
-		}
-	}
 	return nil
 }
 
@@ -153,8 +135,14 @@ func (t *RoundTripper) RoundTrip(request *http.Request) (*http.Response, error) 
 		return nil, err
 	}
 	engine := t.Engine
-	executor := t.Executor
 	t.mu.Unlock()
+
+	responseExec := NewExecutor(func(_ Executor, cmd Runnable) {
+		go func() {
+			cmd.Run()
+			cmd.Destroy()
+		}()
+	})
 
 	requestParams := NewURLRequestParams()
 	if request.Method == "" {
@@ -198,6 +186,7 @@ func (t *RoundTripper) RoundTrip(request *http.Request) (*http.Response, error) 
 	responseHandler := urlResponse{
 		checkRedirect: t.CheckRedirect,
 		roundTripper:  t,
+		responseExec:  responseExec,
 		response: http.Response{
 			Request:    request,
 			Proto:      request.Proto,
@@ -216,7 +205,7 @@ func (t *RoundTripper) RoundTrip(request *http.Request) (*http.Response, error) 
 	callback := NewURLRequestCallback(&responseHandler)
 	urlRequest := NewURLRequest()
 	responseHandler.request = urlRequest
-	urlRequest.InitWithParams(engine, request.URL.String(), requestParams, callback, executor)
+	urlRequest.InitWithParams(engine, request.URL.String(), requestParams, callback, responseExec)
 	requestParams.Destroy()
 	urlRequest.Start()
 	responseHandler.wg.Wait()
@@ -232,6 +221,7 @@ type urlResponse struct {
 	response     http.Response
 	err          error
 	roundTripper *RoundTripper // prevent GC from finalizing RoundTripper while request is in progress
+	responseExec Executor
 
 	access     sync.Mutex
 	read       chan int
@@ -383,6 +373,10 @@ func (r *urlResponse) close(request URLRequest, err error) {
 	r.wgDone.Do(r.wg.Done)
 	close(r.done)
 	request.Destroy()
+	if r.responseExec.ptr != 0 {
+		exec := r.responseExec
+		go exec.Destroy()
+	}
 }
 
 // newSyncExecutor returns an Executor whose callbacks are run synchronously
