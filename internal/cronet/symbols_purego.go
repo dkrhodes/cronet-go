@@ -296,7 +296,8 @@ var (
 	cronetRequestFinishedInfoListenerCreateWith       func(uintptr) uintptr
 
 	// Custom cert verifier functions
-	cronetCreateCertVerifierWithRootCerts func(string) uintptr
+	cronetCreateCertVerifierWithRootCerts          func(string) uintptr
+	cronetCreateInsecureCertVerifierForTesting func() uintptr
 )
 
 // BidirectionalStream API function pointers

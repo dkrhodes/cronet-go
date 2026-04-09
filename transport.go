@@ -2,6 +2,7 @@ package cronet
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -23,6 +24,18 @@ type RoundTripper struct {
 	// Ignored when Engine is set explicitly by the caller.
 	ProxyFunc func() ([]string, error)
 
+	// TrustedRootPEM, if non-empty, is one or more PEM-encoded certificates
+	// (concatenated) that are trusted as root CAs when the RoundTripper creates
+	// its own Engine (Engine is zero on first use). Multiple certificates can be
+	// included in a single string by concatenating their PEM blocks. Applied
+	// before StartWithParams.
+	// InsecureSkipVerify and TrustedRootPEM must not both be set.
+	TrustedRootPEM string
+
+	// InsecureSkipVerify disables TLS certificate verification entirely (testing only).
+	// InsecureSkipVerify and TrustedRootPEM must not both be set.
+	InsecureSkipVerify bool
+
 	closeEngine   bool
 	closeExecutor bool
 }
@@ -40,11 +53,17 @@ func (t *RoundTripper) close() {
 func (t *RoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
 	var emptyEngine Engine
 	if t.Engine == emptyEngine {
+		if t.InsecureSkipVerify && t.TrustedRootPEM != "" {
+			return nil, fmt.Errorf("cronet RoundTripper: InsecureSkipVerify and TrustedRootPEM are mutually exclusive")
+		}
 		engineParams := NewEngineParams()
 		engineParams.SetEnableHTTP2(true)
 		engineParams.SetEnableQuic(true)
 		engineParams.SetEnableBrotli(true)
 		engineParams.SetUserAgent("Go-http-client/1.1")
+		if t.InsecureSkipVerify || t.TrustedRootPEM != "" {
+			engineParams.SetEnablePublicKeyPinningBypassForLocalTrustAnchors(true)
+		}
 		if t.ProxyFunc != nil {
 			urls, err := t.ProxyFunc()
 			if err != nil {
@@ -59,7 +78,25 @@ func (t *RoundTripper) RoundTrip(request *http.Request) (*http.Response, error) 
 			}
 		}
 		t.Engine = NewEngine()
-		t.Engine.StartWithParams(engineParams)
+		if t.InsecureSkipVerify {
+			if !t.Engine.SetInsecureSkipVerify() {
+				t.Engine.Destroy()
+				engineParams.Destroy()
+				return nil, fmt.Errorf("cronet: SetInsecureSkipVerify failed")
+			}
+		} else if t.TrustedRootPEM != "" {
+			if !t.Engine.SetTrustedRootCertificates(t.TrustedRootPEM) {
+				t.Engine.Destroy()
+				engineParams.Destroy()
+				return nil, fmt.Errorf("cronet: SetTrustedRootCertificates failed")
+			}
+		}
+		if r := t.Engine.StartWithParams(engineParams); r != ResultSuccess {
+			t.Engine.Destroy()
+			engineParams.Destroy()
+			t.Engine = Engine{}
+			return nil, fmt.Errorf("cronet: StartWithParams: %d", r)
+		}
 		engineParams.Destroy()
 		t.closeEngine = true
 		runtime.SetFinalizer(t, (*RoundTripper).close)

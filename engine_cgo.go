@@ -179,14 +179,25 @@ func (e Engine) ClientContext() unsafe.Pointer {
 	return unsafe.Pointer(C.Cronet_Engine_GetClientContext(C.Cronet_EnginePtr(unsafe.Pointer(e.ptr))))
 }
 
-// SetTrustedRootCertificates sets custom trusted root certificates for this engine.
+// SetTrustedRootCertificates sets one or more trusted root certificates for this engine.
 // Must be called before StartWithParams().
-// pemRootCerts should be PEM-formatted certificates (can contain multiple certificates).
-// Returns true if the certificates were successfully set, false if parsing failed.
+// pemRootCerts is one or more PEM-encoded certificates concatenated into a single string.
+// Returns true if at least one certificate was successfully parsed, false otherwise.
 func (e Engine) SetTrustedRootCertificates(pemRootCerts string) bool {
 	cPem := C.CString(pemRootCerts)
 	defer C.free(unsafe.Pointer(cPem))
 	certVerifier := C.Cronet_CreateCertVerifierWithRootCerts(cPem)
+	if certVerifier == nil {
+		return false
+	}
+	C.Cronet_Engine_SetMockCertVerifierForTesting(C.Cronet_EnginePtr(unsafe.Pointer(e.ptr)), certVerifier)
+	return true
+}
+
+// SetInsecureSkipVerify installs a cert verifier that accepts any server certificate.
+// For testing only. Must be called before StartWithParams().
+func (e Engine) SetInsecureSkipVerify() bool {
+	certVerifier := C.Cronet_CreateInsecureCertVerifierForTesting()
 	if certVerifier == nil {
 		return false
 	}

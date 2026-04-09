@@ -223,6 +223,11 @@ func CreateCertVerifierWithRootCerts(pemRootCerts string) uintptr {
 	return cronetCreateCertVerifierWithRootCerts(pemRootCerts)
 }
 
+func CreateInsecureCertVerifierForTesting() uintptr {
+	ensureLoaded()
+	return cronetCreateInsecureCertVerifierForTesting()
+}
+
 // Buffer API
 
 func BufferCreate() uintptr {

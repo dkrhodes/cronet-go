@@ -110,8 +110,8 @@ func (p EngineParams) SetSocketPoolOptions(maxPerPool, maxPerProxyChain, maxPerG
 // SetCronetProxyURLs configures a static proxy chain via Cronet experimental options.
 // Each URL uses normal proxy URL syntax, for example:
 //
-//	http://host:8080 , https://host:443 , socks5://127.0.0.1:1080 , socks5h://host:port ,
-//	socks4://host:port , http://user:pass@host:8080 , direct://
+//	http://host:8080 , https://host:443 , quic://host:443 , socks5://127.0.0.1:1080 , socks5h://host:port ,
+//	socks4://host:port , http://user:pass@host:8080 , quic://user:pass@host:443 , direct://
 //
 // Entries are tried in order (fallback). SOCKS5 URLs may include userinfo for RFC 1929
 // username/password authentication. The socks5h scheme (curl-style alias) is accepted
