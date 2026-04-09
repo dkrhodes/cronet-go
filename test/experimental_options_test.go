@@ -167,6 +167,7 @@ func TestSetCronetProxyURLs(t *testing.T) {
 	err := params.SetCronetProxyURLs([]string{
 		"http://user:pass@10.0.0.1:8080",
 		"socks5://127.0.0.1",
+		"quic://proxy.example:443",
 		"direct://",
 	})
 	require.NoError(t, err)
@@ -176,6 +177,7 @@ func TestSetCronetProxyURLs(t *testing.T) {
 	require.Contains(t, options, `"proxies"`, options)
 	require.Contains(t, options, `http://user:pass@10.0.0.1:8080`, options)
 	require.Contains(t, options, `socks5://127.0.0.1`, options)
+	require.Contains(t, options, `quic://proxy.example:443`, options)
 	require.Contains(t, options, `direct://`, options)
 
 	require.NoError(t, params.SetCronetProxyURLs(nil))

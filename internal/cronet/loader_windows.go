@@ -872,6 +872,9 @@ func registerSymbols() error {
 	if err := registerFunc(&cronetCreateCertVerifierWithRootCerts, "Cronet_CreateCertVerifierWithRootCerts"); err != nil {
 		return err
 	}
+	if err := registerFunc(&cronetCreateInsecureCertVerifierForTesting, "Cronet_CreateInsecureCertVerifierForTesting"); err != nil {
+		return err
+	}
 
 	// BidirectionalStream
 	if err := registerFunc(&bidirectionalStreamCreate, "bidirectional_stream_create"); err != nil {

@@ -18,12 +18,31 @@ import (
 //
 //	export CRONET_PROXY_TEST_URL='http://user:pass@host:port'
 //	export CRONET_PROXY_TEST_EXPECTED_IP='egress-ip-from-ident.me'
+//
+// Optional TLS trust (for HTTPS proxies with a private CA):
+//
+//	export CRONET_PROXY_TEST_CA_PEM=/path/to/ca.pem
+//	export CRONET_PROXY_TEST_INSECURE=1   # skip all TLS verification (testing only)
+//
 //	go test -tags with_purego -run TestIdentMeViaHTTPProxyIPv6 -v .
 func TestIdentMeViaHTTPProxyIPv6(t *testing.T) {
 	proxyURL := os.Getenv("CRONET_PROXY_TEST_URL")
 	wantOutbound := strings.TrimSpace(os.Getenv("CRONET_PROXY_TEST_EXPECTED_IP"))
+	caPath := strings.TrimSpace(os.Getenv("CRONET_PROXY_TEST_CA_PEM"))
+	insecure := strings.TrimSpace(os.Getenv("CRONET_PROXY_TEST_INSECURE")) == "1"
+
 	if proxyURL == "" || wantOutbound == "" {
 		t.Skip("set CRONET_PROXY_TEST_URL and CRONET_PROXY_TEST_EXPECTED_IP (see test comment)")
+	}
+	if insecure && caPath != "" {
+		t.Fatal("use only one of CRONET_PROXY_TEST_CA_PEM or CRONET_PROXY_TEST_INSECURE")
+	}
+
+	var caPEM string
+	if caPath != "" {
+		b, err := os.ReadFile(caPath)
+		require.NoError(t, err, "read CA PEM")
+		caPEM = string(b)
 	}
 
 	params := cronet.NewEngineParams()
@@ -35,12 +54,21 @@ func TestIdentMeViaHTTPProxyIPv6(t *testing.T) {
 	params.SetEnableHTTP2(true)
 	params.SetEnableBrotli(false)
 	params.SetHTTPCacheMode(cronet.HTTPCacheModeDisabled)
+	if insecure || caPEM != "" {
+		params.SetEnablePublicKeyPinningBypassForLocalTrustAnchors(true)
+	}
 
 	engine := cronet.NewEngine()
 	defer func() {
 		engine.Shutdown()
 		engine.Destroy()
 	}()
+
+	if insecure {
+		require.True(t, engine.SetInsecureSkipVerify(), "SetInsecureSkipVerify")
+	} else if caPEM != "" {
+		require.True(t, engine.SetTrustedRootCertificates(caPEM), "SetTrustedRootCertificates")
+	}
 
 	require.Equal(t, cronet.ResultSuccess, engine.StartWithParams(params))
 
