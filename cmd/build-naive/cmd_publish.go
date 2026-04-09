@@ -50,6 +50,8 @@ func publish() {
 	copyDirectory(filepath.Join(projectRoot, "include"), filepath.Join(temporaryDirectory, "include"))
 	copyFile(filepath.Join(projectRoot, "include_cgo.go"), filepath.Join(temporaryDirectory, "include_cgo.go"))
 
+	stripPublishTree(temporaryDirectory)
+
 	// Use -f (force add) to include .gitignore'd files
 	runCommand(temporaryDirectory, "git", "add", "-f", "-A")
 	commitMessage := fmt.Sprintf("Build from %s", mainCommit[:8])
@@ -100,6 +102,20 @@ func publish() {
 	runCommand(temporaryDirectory, "git", "push", "origin", "HEAD:"+publishBranch)
 
 	log.Printf("Published to %s branch!", publishBranch)
+}
+
+// stripPublishTree drops dev-only paths so consumer branches stay small and free of CI/build tooling.
+func stripPublishTree(dir string) {
+	log.Print("Removing naiveproxy submodule, cmd/, and .github/ from publish tree...")
+	for _, p := range []string{"naiveproxy", "cmd", ".github"} {
+		c := exec.Command("git", "rm", "-rf", p)
+		c.Dir = dir
+		c.Stdout = os.Stdout
+		c.Stderr = os.Stderr
+		if err := c.Run(); err != nil {
+			log.Printf("note: git rm %s (ok if untracked/absent): %v", p, err)
+		}
+	}
 }
 
 func formatPseudoVersion(commitTime time.Time, commitHash string) string {
