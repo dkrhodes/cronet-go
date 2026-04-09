@@ -36,11 +36,14 @@ type RoundTripper struct {
 	// InsecureSkipVerify and TrustedRootPEM must not both be set.
 	InsecureSkipVerify bool
 
+	mu            sync.Mutex
+	closed        bool
+	closeOnce     sync.Once
 	closeEngine   bool
 	closeExecutor bool
 }
 
-func (t *RoundTripper) close() {
+func (t *RoundTripper) closeResources() {
 	if t.closeEngine {
 		t.Engine.Shutdown()
 		t.Engine.Destroy()
@@ -50,11 +53,26 @@ func (t *RoundTripper) close() {
 	}
 }
 
-func (t *RoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+// Close shuts down any Engine and Executor that the RoundTripper created
+// internally (i.e. those not supplied by the caller). It is safe to call
+// Close concurrently with RoundTrip. After Close returns, subsequent
+// RoundTrip calls return net.ErrClosed immediately. Close is idempotent.
+func (t *RoundTripper) Close() {
+	t.mu.Lock()
+	t.closed = true
+	t.mu.Unlock()
+	t.closeOnce.Do(t.closeResources)
+}
+
+// initLocked initialises the Engine and Executor if they have not yet been
+// created. It must be called with t.mu held and returns with t.mu still held
+// on success. On error the mutex is unlocked before returning.
+func (t *RoundTripper) initLocked() error {
 	var emptyEngine Engine
 	if t.Engine == emptyEngine {
 		if t.InsecureSkipVerify && t.TrustedRootPEM != "" {
-			return nil, fmt.Errorf("cronet RoundTripper: InsecureSkipVerify and TrustedRootPEM are mutually exclusive")
+			t.mu.Unlock()
+			return fmt.Errorf("cronet RoundTripper: InsecureSkipVerify and TrustedRootPEM are mutually exclusive")
 		}
 		engineParams := NewEngineParams()
 		engineParams.SetEnableHTTP2(true)
@@ -67,13 +85,15 @@ func (t *RoundTripper) RoundTrip(request *http.Request) (*http.Response, error) 
 		if t.ProxyFunc != nil {
 			urls, err := t.ProxyFunc()
 			if err != nil {
+				t.mu.Unlock()
 				engineParams.Destroy()
-				return nil, err
+				return err
 			}
 			if len(urls) > 0 {
 				if err := engineParams.SetCronetProxyURLs(urls); err != nil {
+					t.mu.Unlock()
 					engineParams.Destroy()
-					return nil, err
+					return err
 				}
 			}
 		}
@@ -81,25 +101,30 @@ func (t *RoundTripper) RoundTrip(request *http.Request) (*http.Response, error) 
 		if t.InsecureSkipVerify {
 			if !t.Engine.SetInsecureSkipVerify() {
 				t.Engine.Destroy()
+				t.Engine = Engine{}
+				t.mu.Unlock()
 				engineParams.Destroy()
-				return nil, fmt.Errorf("cronet: SetInsecureSkipVerify failed")
+				return fmt.Errorf("cronet: SetInsecureSkipVerify failed")
 			}
 		} else if t.TrustedRootPEM != "" {
 			if !t.Engine.SetTrustedRootCertificates(t.TrustedRootPEM) {
 				t.Engine.Destroy()
+				t.Engine = Engine{}
+				t.mu.Unlock()
 				engineParams.Destroy()
-				return nil, fmt.Errorf("cronet: SetTrustedRootCertificates failed")
+				return fmt.Errorf("cronet: SetTrustedRootCertificates failed")
 			}
 		}
 		if r := t.Engine.StartWithParams(engineParams); r != ResultSuccess {
 			t.Engine.Destroy()
-			engineParams.Destroy()
 			t.Engine = Engine{}
-			return nil, fmt.Errorf("cronet: StartWithParams: %d", r)
+			t.mu.Unlock()
+			engineParams.Destroy()
+			return fmt.Errorf("cronet: StartWithParams: %d", r)
 		}
 		engineParams.Destroy()
 		t.closeEngine = true
-		runtime.SetFinalizer(t, (*RoundTripper).close)
+		runtime.SetFinalizer(t, func(rt *RoundTripper) { rt.closeOnce.Do(rt.closeResources) })
 	}
 	var emptyExecutor Executor
 	if t.Executor == emptyExecutor {
@@ -111,9 +136,25 @@ func (t *RoundTripper) RoundTrip(request *http.Request) (*http.Response, error) 
 		})
 		t.closeExecutor = true
 		if !t.closeEngine {
-			runtime.SetFinalizer(t, (*RoundTripper).close)
+			runtime.SetFinalizer(t, func(rt *RoundTripper) { rt.closeOnce.Do(rt.closeResources) })
 		}
 	}
+	return nil
+}
+
+func (t *RoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+	t.mu.Lock()
+	if t.closed {
+		t.mu.Unlock()
+		return nil, net.ErrClosed
+	}
+	if err := t.initLocked(); err != nil {
+		// initLocked already unlocked the mutex on error
+		return nil, err
+	}
+	engine := t.Engine
+	executor := t.Executor
+	t.mu.Unlock()
 
 	requestParams := NewURLRequestParams()
 	if request.Method == "" {
@@ -133,7 +174,7 @@ func (t *RoundTripper) RoundTrip(request *http.Request) (*http.Response, error) 
 	if request.Body != nil {
 		uploadProvider := NewUploadDataProvider(&bodyUploadProvider{request.Body, request.GetBody, request.ContentLength})
 		requestParams.SetUploadDataProvider(uploadProvider)
-		requestParams.SetUploadDataExecutor(t.Executor)
+		requestParams.SetUploadDataExecutor(executor)
 	}
 	responseHandler := urlResponse{
 		checkRedirect: t.CheckRedirect,
@@ -156,7 +197,7 @@ func (t *RoundTripper) RoundTrip(request *http.Request) (*http.Response, error) 
 	callback := NewURLRequestCallback(&responseHandler)
 	urlRequest := NewURLRequest()
 	responseHandler.request = urlRequest
-	urlRequest.InitWithParams(t.Engine, request.URL.String(), requestParams, callback, t.Executor)
+	urlRequest.InitWithParams(engine, request.URL.String(), requestParams, callback, executor)
 	requestParams.Destroy()
 	urlRequest.Start()
 	responseHandler.wg.Wait()
