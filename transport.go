@@ -172,9 +172,28 @@ func (t *RoundTripper) RoundTrip(request *http.Request) (*http.Response, error) 
 		}
 	}
 	if request.Body != nil {
-		uploadProvider := NewUploadDataProvider(&bodyUploadProvider{request.Body, request.GetBody, request.ContentLength})
+		// Use a dedicated synchronous executor for upload callbacks.
+		//
+		// The shared RoundTripper executor spawns one goroutine per native
+		// callback (go func() { cmd.Run(); cmd.Destroy() }()).  Under rapid
+		// sequential requests this creates a race: cmd.Destroy() from request
+		// N's goroutine can run concurrently with the upload-data-sink
+		// allocation for request N+1, zeroing the new sink's vtable pointer
+		// and causing a SIGSEGV inside OnReadSucceeded.
+		//
+		// A synchronous executor runs each callback inline on the native
+		// thread it was dispatched from, so cmd.Destroy() always completes
+		// before control returns to the native engine — no goroutine overlap.
+		uploadExec := newSyncExecutor()
+		provider := &bodyUploadProvider{
+			body:          request.Body,
+			getBody:       request.GetBody,
+			contentLength: request.ContentLength,
+			uploadExec:    uploadExec,
+		}
+		uploadProvider := NewUploadDataProvider(provider)
 		requestParams.SetUploadDataProvider(uploadProvider)
-		requestParams.SetUploadDataExecutor(executor)
+		requestParams.SetUploadDataExecutor(uploadExec)
 	}
 	responseHandler := urlResponse{
 		checkRedirect: t.CheckRedirect,
@@ -366,10 +385,22 @@ func (r *urlResponse) close(request URLRequest, err error) {
 	request.Destroy()
 }
 
+// newSyncExecutor returns an Executor whose callbacks are run synchronously
+// (inline) on the native thread that dispatched them, with no extra goroutine.
+func newSyncExecutor() Executor {
+	return NewExecutor(func(_ Executor, cmd Runnable) {
+		cmd.Run()
+		cmd.Destroy()
+	})
+}
+
 type bodyUploadProvider struct {
 	body          io.ReadCloser
 	getBody       func() (io.ReadCloser, error)
 	contentLength int64
+	// uploadExec is a per-request synchronous executor created in RoundTrip.
+	// It is destroyed (asynchronously) when Close is called.
+	uploadExec Executor
 }
 
 func (p *bodyUploadProvider) Length(self UploadDataProvider) int64 {
@@ -378,14 +409,28 @@ func (p *bodyUploadProvider) Length(self UploadDataProvider) int64 {
 
 func (p *bodyUploadProvider) Read(self UploadDataProvider, sink UploadDataSink, buffer Buffer) {
 	n, err := p.body.Read(buffer.DataSlice())
-	if err != nil {
-		if p.contentLength == -1 && err == io.EOF {
+	if n > 0 {
+		// Data was read. For chunked uploads (contentLength == -1) only flag
+		// finalChunk when EOF is also returned in this call; for sized uploads
+		// cronet tracks completion via Length() so we always pass false.
+		finalChunk := p.contentLength == -1 && err == io.EOF
+		sink.OnReadSucceeded(int64(n), finalChunk)
+		return
+	}
+	// n == 0 — only look at the error now.
+	if err == io.EOF {
+		if p.contentLength == -1 {
+			// Chunked upload: signal end-of-stream.
 			sink.OnReadSucceeded(0, true)
-			return
+		} else {
+			// Sized upload fully consumed; cronet should not call Read again.
+			// Signal success with 0 bytes to unblock the upload machinery.
+			sink.OnReadSucceeded(0, false)
 		}
+		return
+	}
+	if err != nil {
 		sink.OnReadError(err.Error())
-	} else {
-		sink.OnReadSucceeded(int64(n), false)
 	}
 }
 
@@ -407,4 +452,14 @@ func (p *bodyUploadProvider) Rewind(self UploadDataProvider, sink UploadDataSink
 func (p *bodyUploadProvider) Close(self UploadDataProvider) {
 	self.Destroy()
 	p.body.Close()
+	if p.uploadExec.ptr != 0 {
+		// Destroy the per-request upload executor outside of the current
+		// callback chain.  Close() is itself dispatched through uploadExec, so
+		// calling Cronet_Executor_Destroy here would be re-entrant.  Close is
+		// guaranteed to be the terminal callback — no further dispatches will
+		// occur on this executor — so scheduling destruction in a goroutine is
+		// safe.
+		exec := p.uploadExec
+		go exec.Destroy()
+	}
 }
