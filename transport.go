@@ -245,6 +245,7 @@ func (r *urlResponse) monitorContext(ctx context.Context) {
 
 func (r *urlResponse) OnRedirectReceived(self URLRequestCallback, request URLRequest, info URLResponseInfo, newLocationUrl string) {
 	if r.checkRedirect != nil && !r.checkRedirect(newLocationUrl) {
+		r.access.Lock()
 		r.response.Status = info.StatusText()
 		r.response.StatusCode = info.StatusCode()
 		headerLen := info.HeaderSize()
@@ -253,7 +254,8 @@ func (r *urlResponse) OnRedirectReceived(self URLRequestCallback, request URLReq
 			r.response.Header.Set(header.Name(), header.Value())
 		}
 		r.response.Body = io.NopCloser(io.MultiReader())
-		r.wg.Done()
+		r.access.Unlock()
+		r.finish(request, nil)
 		return
 	}
 	request.FollowRedirect()
@@ -357,6 +359,10 @@ func (r *urlResponse) OnCanceled(self URLRequestCallback, request URLRequest, in
 }
 
 func (r *urlResponse) close(request URLRequest, err error) {
+	r.finish(request, err)
+}
+
+func (r *urlResponse) finish(request URLRequest, err error) {
 	r.access.Lock()
 	defer r.access.Unlock()
 
@@ -372,7 +378,9 @@ func (r *urlResponse) close(request URLRequest, err error) {
 
 	r.wgDone.Do(r.wg.Done)
 	close(r.done)
-	request.Destroy()
+	if request.ptr != 0 {
+		request.Destroy()
+	}
 	if r.responseExec.ptr != 0 {
 		exec := r.responseExec
 		go exec.Destroy()
