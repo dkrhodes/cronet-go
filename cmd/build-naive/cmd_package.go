@@ -352,7 +352,7 @@ go 1.20
 
 		var ldFlags []string
 
-		if t.GOOS == "darwin" || t.GOOS == "ios" {
+		if t.GOOS == "darwin" || t.GOOS == "ios" || t.GOOS == "linux" {
 			ldFlags = append(ldFlags, "${SRCDIR}/libcronet.a")
 		} else {
 			ldFlags = append(ldFlags, "-L${SRCDIR}", "-l:libcronet.a")
