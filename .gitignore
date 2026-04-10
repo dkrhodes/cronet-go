@@ -11,3 +11,6 @@ CLAUDE.md
 /include/
 /cgo_*.go
 /lib_*_cgo.go
+/naiveproxy/
+/cmd/
+/.github/
