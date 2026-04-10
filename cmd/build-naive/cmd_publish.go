@@ -116,6 +116,24 @@ func stripPublishTree(dir string) {
 			log.Printf("note: git rm %s (ok if untracked/absent): %v", p, err)
 		}
 	}
+
+	// append the folder to .gitignore
+	gitignorePath := filepath.Join(dir, ".gitignore")
+	gitignoreContent, err := os.ReadFile(gitignorePath)
+	if err != nil {
+		log.Fatalf("failed to read .gitignore: %v", err)
+	}
+
+	if err := os.WriteFile(
+		gitignorePath,
+		append(
+			gitignoreContent,
+			[]byte(strings.Join([]string{"/naiveproxy/", "/cmd/", "/.github/"}, "\n"))...,
+		),
+		0o644,
+	); err != nil {
+		log.Fatalf("failed to write .gitignore: %v", err)
+	}
 }
 
 func formatPseudoVersion(commitTime time.Time, commitHash string) string {
